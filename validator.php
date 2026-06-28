@@ -1,161 +1,73 @@
 <?php
 
-function saisir($label)
+
+namespace EWallet\Validator;
+
+use function EWallet\Repository\find_wallet_by_phone;
+use function EWallet\Repository\code_existe;
+
+
+function champ_obligatoire(string $valeur, string $label): ?string
 {
-    print($label . " : ");
-    return trim(fgets(STDIN));
+    if (trim($valeur) === '') {
+        return "Le champ '{$label}' est obligatoire.";
+    }
+    return null;
 }
 
-function nomValide($nom)
+function solde_initial(string $valeur): ?string
 {
-    $nom = trim((string)$nom);
-    if ($nom === "") {
-        return "invalide";
+    if (!is_numeric($valeur)) {
+        return "Le solde initial doit être un nombre valide.";
     }
-
-    return "ok";
+    if ((float)$valeur < 0) {
+        return "Le solde initial doit être positif ou nul (>= 0).";
+    }
+    return null;
 }
 
-function afficherErreur($message)
+function phone_unique(string $phone): ?string
 {
-    print("[ERREUR] " . $message . "\n");
+    if (find_wallet_by_phone($phone) !== null) {
+        return "Ce numéro de téléphone est déjà associé à un wallet.";
+    }
+    return null;
 }
 
-
-function validerPrefixes($telephone)
+function code_unique(string $code): ?string
 {
-    $prefixes = ["77", "78", "76", "75", "70"];
-
-    for ($i = 0; $i < count($prefixes); $i++) {
-
-        if ($telephone[0] . $telephone[1] === $prefixes[$i]) {
-            return true;
-        }
+    if (code_existe($code)) {
+        return "Ce code secret est déjà utilisé par un autre wallet.";
     }
-
-    return false;
-}
-
-function telephoneValide($telephone, $longueur = 9)
-{
-    if (strlen($telephone) != $longueur) {
-        return "invalide";
-    }
-
-    if (!validerPrefixes($telephone)) {
-        return "invalide";
-    }
-
-    return "ok";
-}
-
-function codeValide($code, $longueur = 4)
-{
-    if (strlen($code) == $longueur) {
-        return $code;
-    }
-
-    return "invalide";
-}
-
-function soldeValide($solde)
-{
-    if ($solde >= 0) {
-        return $solde;
-    }
-
-    return "invalide";
-} 
-function validerTelephoneUnique($telephone)
-{
-    if (rechercherWallet('telephone', $telephone) !== "introuvable") {
-        return "Téléphone déjà utilisé.";
-    }
-    return "ok";
-}
-function validerCodeUnique($code)
-{
-    if (rechercherWallet('code', $code) !== "introuvable") {
-        return "Code déjà utilisé.";
-    }
-    return "ok";
+    return null;
 }
 
 
-function validerCreationWallet($nom, $telephone, $code, $solde)
+function phone_existe(string $phone): ?string
 {
-    $validations = [
-        nomValide($nom),
-        telephoneValide($telephone),
-        validerPrefixes($telephone),
-        validerTelephoneUnique($telephone),
-        codeValide($code),
-        validerCodeUnique($code),
-        soldeValide($solde),
-    ];
- 
-    for ($i = 0; $i < count($validations); $i++) {
-        if ($validations[$i] !== "ok") {
-            return $validations[$i];
-        }
+    if (find_wallet_by_phone($phone) === null) {
+        return "Aucun wallet trouvé pour ce numéro de téléphone.";
     }
-    return "ok";
+    return null;
 }
 
- 
-function afficherSucces($message)
+function montant_positif(string $valeur): ?string
 {
-    print("[OK] " . $message . "\n");
+    if (!is_numeric($valeur) || (float)$valeur <= 0) {
+        return "Le montant doit être strictement positif (> 0).";
+    }
+    return null;
 }
 
-function montantValide($montant)
+function solde_suffisant(string $phone, float $montant, float $frais): ?string
 {
-    if ($montant > 0) {
-        return $montant;
-    }
-    return "invalide";
-}
+    $wallet       = find_wallet_by_phone($phone);
+    $total_requis = $montant + $frais;
 
-function validerMontant($montant)
-{
-    if (montantValide($montant) === "invalide") {
-        return "Montant invalide : doit être strictement positif.";
+    if ($wallet['solde'] < $total_requis) {
+        return "Solde insuffisant. "
+             . "Disponible : " . $wallet['solde'] . " CFA | "
+             . "Requis : " . $total_requis . " CFA.";
     }
-    return "ok";
-}
- 
-function rechercherWallet($champ, $valeur)
-{
-    global $wallets;
- 
-    for ($i = 0; $i < count($wallets); $i++) {
-        if ($wallets[$i][$champ] === $valeur) {
-            return $i;
-        }
-    }
-    return "introuvable";
-}
-
-
-function validerWalletExiste($telephone)
-{
-    if (rechercherWallet('telephone', $telephone) === "introuvable") {
-        return "Wallet introuvable.";
-    }
-    return "ok";
-}
-
-function validerDepot($telephone, $montant)
-{
-    $validations = [
-        validerWalletExiste($telephone),
-        validerMontant($montant),
-    ];
- 
-    for ($i = 0; $i < count($validations); $i++) {
-        if ($validations[$i] !== "ok") {
-            return $validations[$i];
-        }
-    }
-    return "ok";
+    return null;
 }
